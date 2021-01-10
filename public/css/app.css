@@ -1,0 +1,19 @@
+body {
+    background-color: #c0c0c0;
+}
+
+.central-block {
+    margin: 55px 20px 20px 20px;
+}
+nav {
+    box-shadow: 3px 3px 5px 5px gray;
+    margin-top: 10px;
+}
+
+.central-block:hover{
+    box-shadow: 3px 3px 5px 5px gray;
+    -webkit-transition: all 0.3s ease;
+    -moz-transition: all 0.3s ease;
+    -o-transition: all 0.3s ease;
+    transition: all 0.3s ease;
+}
