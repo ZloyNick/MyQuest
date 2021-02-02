@@ -8,11 +8,20 @@ import Vue from 'vue';
 import { VueMaskDirective } from 'v-mask'
 Vue.directive('mask', VueMaskDirective);
 
-import axios from 'axios';
-
 Vue.prototype.axios = window.axios
 
-Vue.component('ex', require('./components/ExampleComponent.vue').default);
+Vue.component('ex', require('./components/MainPage.vue').default);
+Vue.component('service', require('./components/Service.vue').default);
+Vue.component('company', require('./components/Company').default);
+
 const app = new Vue({
     el: '#app'
 });
+
+document.ondragstart = noselect;
+document.onselectstart = noselect;
+document.oncontextmenu = noselect;
+
+function noselect() {
+    return false;
+}
