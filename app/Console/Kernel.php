@@ -39,6 +39,10 @@ class Kernel extends ConsoleKernel
                     'service:dadata:fails',
                     'service:dadata:error'
                 );
+                $redisClient->unlink(
+                    'service:random:fails',
+                    'service:random:error'
+                );
 
                 $redisClient->unlink(
                     'service:blocked'
