@@ -16,8 +16,11 @@
     <link href="{{ asset('css/bootstrap.min.css') }}" rel="stylesheet">
     <link href="{{ asset('css/app.css') }}" rel="stylesheet">
 
+    <link rel="icon" href="https://faviconka.ru/ico/1/faviconka.ru_1_105913.ico" type="image/x-icon" />
+    <link rel="shortcut icon" href="https://faviconka.ru/ico/1/faviconka.ru_1_105913.ico" type="image/x-icon" />
+
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <a class="navbar-brand" href="#">Самый топовый сайт в мире</a>
+        <a class="navbar-brand" href="#">INN-Company</a>
     </nav>
 </head>
 <body>

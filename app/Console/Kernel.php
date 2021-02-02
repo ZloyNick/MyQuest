@@ -3,6 +3,7 @@
 namespace App\Console;
 
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Redis;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
 class Kernel extends ConsoleKernel
@@ -24,7 +25,27 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        $schedule->call(
+            function ()
+            {
+                $redisClient = Redis::connection()->client();
+                $redisClient->select("0");
+
+                $redisClient->unlink(
+                    'service:localhost:fails',
+                    'service:localhost:error'
+                );
+                $redisClient->unlink(
+                    'service:dadata:fails',
+                    'service:dadata:error'
+                );
+
+                $redisClient->unlink(
+                    'service:blocked'
+                );
+
+            }
+        )->hourly();
     }
 
     /**

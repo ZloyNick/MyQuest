@@ -4,15 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-//validator
-//use App\Http\Requests\SearchCompanyRequest;
-use amp\tasks\AsyncDadataRequestTask;
+use Illuminate\Support\Facades\Redis;
+use Symfony\Component\Process\Process;
 use Illuminate\Http\Request;
-use Amp\Delayed;
-use Amp\Loop;
-use Amp\Parallel\Context\Parallel;
-use function Amp\call;
-use function Amp\Promise\wait;
+
+use function getcwd, unserialize, response;
+
+use Exception;
 
 class CompanySearchController extends Controller
 {
@@ -42,96 +40,69 @@ class CompanySearchController extends Controller
      */
     public function search(Request $request)
     {
-        // Передаваемый ИНН организации.
-        $inn = $request->offsetGet('inn');
+        $inn = str_replace(' ', null, $request->offsetGet('inn'));
+        $threads = env('THREADS');
+        $token = env('DADATA_TOKEN');
+        $runtime = env('PTHREADS_PHP_RUNTIME');
+        $scriptSrc = getcwd().'/scripts/AsyncCompanySearch.php';
 
-        // Получаем данные с dadata.ru
-        // и конвертируем в нужный нам вид
-        // Насчёт асинхронности: да, задача выполняется
-        // параллельно.
-        // Вместо pthreads заюзал amphp/parallel
-        // ибо в винде бинарник с pthreads компилится криво,
-        // а именно, php.ini не может подключить его.
-        // Шиндоус мне пока что нужна=)
+        $redisClient = Redis::connection()->client();
+        $redisClient->select("0");
 
-        $dadataProcess = call(
-            function () use ($inn) {
-                $result =
-                    (
-                    new \Dadata_Service_Rest(
-                        new \Dadata_Client(
-                            [
-                                'api_key' => env('DADATA_TOKEN'),
-                                'base_uri' => 'https://suggestions.dadata.ru/suggestions/api/4_1/rs/findById/party/',
-                                'content_type' => 'application/json'
-                            ]
-                        )
-                    )
-                    )->suggest->party(['query' => $inn]);
-                $parties = $result->getSuggestions();
-                $data = [];
-                /**
-                 *
-                 * <p>
-                 *  Приводим данные в нужный нам вид.
-                 *  Взял пока только основное=)
-                 * </p>
-                 *
-                 * @var int $k
-                 * @var \Dadata_Suggest_Party_Data $party
-                 */
-                foreach ($parties as $k => $party) {
-                    $party = optional($party->getData());
+        $blockedServices = $redisClient->get('service:blocked');
 
-                    $data[$k] = [
-                        'name' => $party->name['full_with_opf'],
-                        'ogrn' => $party->ogrn,
-                        'kpp' => $party->kpp,
-                        'inn' => $party->inn,
-                        'maintrainer' => [
-                            'name' => $party->management['name'],
-                            'role' => $party->management['post']
-                        ],
-                        'active' => $party->state['status'] == 'ACTIVE',
-                        'address' => $party->address['value']
-                    ];
-                }
+        if(!$blockedServices)
+        {
+            $redisClient->set('service:blocked', "");
+            $blockedServices = "";
+        }
 
-                // Возвращаем закодированный сериализованный класс
-                // base64 нужен, чтобы не "пихнулся" null byte \0
-                return base64_encode(serialize($data));
-            }
-        );
+        $process = new Process([$runtime, $scriptSrc, $threads, $inn, $token, $blockedServices]);
 
-        Loop::run(function () {
-            $timer = Loop::repeat(1000, function () {
-                static $i;
-                $i = $i ? ++$i : 1;
-                print "Demonstrating how alive the parent is for the {$i}th time.\n";
-            });
+        $data = $this->runProcess($process);
+        $this->redisFill($data);
 
-            try {
-                // Create a new child thread that does some blocking stuff.
-                $context = yield Parallel::run(__DIR__ . "/blocking-process.php");
+        return response()->json($data);
+    }
 
-                \assert($context instanceof Parallel);
-
-                print "Waiting 2 seconds to send start data...\n";
-                yield new Delayed(2000);
-
-                yield $context->send("Start data"); // Data sent to child process, received on line 9 of blocking-process.php
-
-                \printf("Received the following from child: %s\n", yield $context->receive()); // Sent on line 14 of blocking-process.php
-                \printf("Process ended with value %d!\n", yield $context->join());
-            } finally {
-                Loop::cancel($timer);
+    private function runProcess(Process &$process) : array
+    {
+        $process->run();
+        $process->wait(function ($type, $buffer) {
+            if (Process::ERR === $type) {
+                throw new Exception($buffer);
             }
         });
 
-        $rawDadataData = wait($dadataProcess);
-        $dadataData = unserialize(base64_decode($rawDadataData));
-
-        return;
-        //return \response()->json($dadataData, 200);
+        return unserialize($process->getOutput());
     }
+
+    private function redisFill(array &$data) : void
+    {
+        $redisClient = Redis::connection()->client();
+        $redisClient->select("0");
+
+        foreach ($data as $service => $result)
+        {
+            if(!$redisClient->get('service:'.$service.':fails'))
+                $redisClient->set('service:'.$service.':fails', 0);
+
+            if($result['status'] == 500)
+            {
+                $redisClient->incr('service:'.$service.':fails');
+                $redisClient->set('service:'.$service.':error', $result['message']);
+
+                if($redisClient->get('service:'.$service.':fails') == 5)
+                {
+                    $redisClient->set(
+                        'service:blocked',
+                        $redisClient->get('service:blocked').','.$service
+                    );
+                }
+
+                unset($data[$service]);
+            }
+        }
+    }
+
 }

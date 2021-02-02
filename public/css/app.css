@@ -17,3 +17,12 @@ nav {
     -o-transition: all 0.3s ease;
     transition: all 0.3s ease;
 }
+
+.jumbotron:hover .central-block:hover #service-title{
+    text-shadow: 3px 3px 5px 5px salmon;
+    color: deepskyblue;
+    -webkit-transition: all 0.3s ease;
+    -moz-transition: all 0.3s ease;
+    -o-transition: all 0.3s ease;
+    transition: all 0.3s ease;
+}

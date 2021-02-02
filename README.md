@@ -1,62 +1,119 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400"></a></p>
+<h1 align="center">Документация к установке проекта</h1>
 
-<p align="center">
-<a href="https://travis-ci.org/laravel/framework"><img src="https://travis-ci.org/laravel/framework.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+# Установка РHP
 
-## About Laravel
+Вам пондаобится бинарник PHP 7.3.x с Zend Thread Safety, чтобы скомпилировать php с pthreads
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+<h1>Как это сделать?</h1>
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+[Здесь подробно описано, как это сделать](https://gist.github.com/lokisho/8ee9e73c92fdb9bce3ea501e7d5217c7)
+<br>Ну а для ленивых, в storage лежит архив с моим бинарником.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+#Как работает проект?
 
-## Learning Laravel
+С помощью REST API мы направляем ИНН, введённый пользователелем, в контроллер.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+<b>Что там просиходит?</b>
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains over 1500 video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Web нельзя поднять на бинарнике с pthreads, так как он полностью обрезает SApi, что является абсолютно
+нормальным поведением. Поэтому, мы запускаем Laravel на одном бинарнике, а выполняем операцию по сбору данных на другой.
+pthreads - это бибилиотека для работы с потоками, благодаря ей, задачи исполняются параллельно.
 
-## Laravel Sponsors
+#Пыха же однопоточное...<p size="1">g</p>
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the Laravel [Patreon page](https://patreon.com/taylorotwell).
+Да, верно. php хоть и однопоточный, потоки там нативно никак пока что хоть и не используешь, зато можно общаться между 
+потоками с помощью типов данных, что на намекает на serialize)00))0
 
-### Premium Partners
+При запуске такого Франкенштейна, я отправляю 3 Threaded в разные потоки. Почему? Задачи "стакаются", если слать их в один поток,
+тогда толку от pthreads нет вообще. 
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Cubet Techno Labs](https://cubettech.com)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[Many](https://www.many.co.uk)**
-- **[Webdock, Fast VPS Hosting](https://www.webdock.io/en)**
-- **[DevSquad](https://devsquad.com)**
-- **[Curotec](https://www.curotec.com/)**
-- **[OP.GG](https://op.gg)**
+<b>Почему открыто 2 порта под Laravel?</b>
 
-## Contributing
+Дополнительно запущен сервер для реализации API.
+Дело в том, что я использую Symfony/Process для получения данных, которые отдают потоки. Одна из задач использует API этого же проекта. А если говорить проще ,
+Пока мы ждём отклика от задачи, мы не можем отдать ответ со своего апи. Поток просто замирает. Но 2 параллельной задачи делает параллельку бесполезной. Так, я получаю данные с Dadata, базы, и в последней беру фейковые
+ данные, которые были мне отдаёт другой сайт. То есть, по факту, это 3 разных потока, которые выполняют задачи параллельно друг другу.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+5 неудачных попыток блокируют сервис, который вызывает ошибку, а затем, "к концу часа", как было и описано в тз, они используются вновь.
+Реализация лежит в App\Console\Kernel. Ну за дизайн я вообще ничего говорить не буду. Ненавижу фронт, но  Vue нравится.
 
-## Code of Conduct
+## Установка проекта.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+<ol start="1">
+    <li>
+        Установите все зависимости с помощью Composer<br>
+        <code>
+            composer install
+        </code>
+    </li>
+    <li>
+        NPM || yarn (Frontend)<br>
+        <code>
+            npm install
+        </code>
+        или
+        <code>
+            yarn install
+        </code>
+    </li>
+    <li>
+        Сгенерируйте .env
+        <br>
+        <code>
+            cp .env.example .env
+        </code>
+        <br>
+        Обратите внимание, что Вам необходимо запоолнить некоторые поля:
+        <pre>
+            <code>
+//Чтобы получить API токен, зарегистрируйтесь на сайте dadata.ru
+DADATA_TOKEN=
+//Количество потоков
+THREADS=4
+//Полный путь до PHP Runtime с pthreads
+PTHREADS_PHP_RUNTIME=/home/zloynick/bin/php7/bin/php
+//базу данных тоже необходимо настроить.
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=companies
+DB_USERNAME=
+DB_PASSWORD=
+            </code>
+        </pre>
+    </li>
+    <li>
+        Сгенерируйте ключ приложения
+        <br>
+        <code>
+            php artisan key:generate
+        </code>
+    </li>
+    <li>
+        Установите себе "голый" Redis и настройте .env так, как показано ниже:
+        <pre>
+            <code>
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+            </code>
+        </pre>
+    </li>
+    <li>
+        Установите базу:
+        <br>
+        <code>
+            php artisan migrate
+        </code>
+    </li>
+    <li>
+        Заполните базу.
+        <pre>vendor/bin/phpunit tests/Feature/FillDatabase.php</pre>
+    </li>
+    <li>
+        Запускайте!
+        <br>
+        <code>
+            ./start.sh
+        </code>
+    </li>
+</ol>
