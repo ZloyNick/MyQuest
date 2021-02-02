@@ -1,5 +1,6 @@
 <?php
 
+declare(strict_types=1);
 
 namespace App\Lib\ZloyNick\pthreads\task;
 
@@ -7,10 +8,12 @@ use App\Lib\ZloyNick\pthreads\AsyncTask;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 
+use function serialize, mt_rand, json_decode;
+
 class RandomDataAsyncTask extends AsyncTask
 {
 
-    public function run()
+    public function run() : void
     {
         parent::run();
 
@@ -32,9 +35,7 @@ class RandomDataAsyncTask extends AsyncTask
                     'timeout' => 5
                 ]
             );
-
         } catch (GuzzleException $e) {
-
             $data['message'] = $e->getMessage();
             $this->setOutput(serialize($data));
             $this->setCompleted();
@@ -44,7 +45,8 @@ class RandomDataAsyncTask extends AsyncTask
             $parties = json_decode($response->getBody()->getContents());
         }
 
-        foreach ($parties as $k => $party) {
+        foreach ($parties as $k => $party)
+        {
             $data[$k] = [
                 'name' => $party->PasportOtd,
                 'ogrn' => $party->ogrn,
@@ -54,7 +56,7 @@ class RandomDataAsyncTask extends AsyncTask
                     'name' => "{$party->LastName} {$party->FirstName} {$party->FatherName}",
                     'role' => "наЩяльникЕ"
                 ],
-                'active' => true,
+                'active' => (bool)mt_rand(0, 1),
                 'address' => $party->Address
             ];
         }

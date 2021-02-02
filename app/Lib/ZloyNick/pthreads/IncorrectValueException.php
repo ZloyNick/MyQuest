@@ -15,7 +15,7 @@ class IncorrectValueException extends Exception
      *  Wrong key's name
      * </p>
      */
-    public function __construct($variable)
+    public function __construct(string $variable)
     {
         parent::__construct(
             'Incorrect array\'s key given. Pattern of variable must be is A-Z, a-z, 0-9. Key given: '.$variable

@@ -1,24 +1,37 @@
 <?php
 
+/*
+ *
+ * Adapted class for all
+ * tasks.
+ *
+ */
+
 declare(strict_types=1);
 
 namespace App\Lib\ZloyNick\pthreads;
 
-use Exception, Threaded;
+use Exception, Threaded, ComposerAutoloaderInit265cfa55c83f224b7f33bd3f36a008a6;
 
-use function serialize, unserialize, is_null, preg_match, count;
+use function serialize, unserialize, is_null, preg_match;
 
 class AsyncTask extends Threaded
 {
 
+    /**
+     * @var bool $completed
+     * @var string $output
+     * @var string $service
+     */
     private
-        $completed = false,// task's status
-        $output = '',// description
-        $service = '',
-        $description = 'No description given';// Task's description
+        $completed = false,
+        $output = '',
+        $service = '';
 
     /**
-     * AsyncTask constructor.
+     *
+     * Service's name
+     *
      * @param string $service
      */
     function __construct(string $service)
@@ -31,16 +44,16 @@ class AsyncTask extends Threaded
      *  Only for autoload
      * </title>
      */
-    public function run()
+    public function run() : void
     {
         require __DIR__ . '/../../../../vendor/composer/autoload_real.php';
-        \ComposerAutoloaderInit265cfa55c83f224b7f33bd3f36a008a6::getLoader();
+        ComposerAutoloaderInit265cfa55c83f224b7f33bd3f36a008a6::getLoader();
     }
 
     /**
      *
      * <title>
-     *  Data recording.
+     *  Array's values recording
      * </title>
      *
      * @param mixed[] $data
@@ -53,58 +66,36 @@ class AsyncTask extends Threaded
      *  </font>
      * </p>
      *
-     * @param string[] $keys
-     * <p>
-     *  Selects only the specified keys. Leave blank if all values are required
-     *  <br>
-     *  Example:
-     * <code>
-     *  $task = new AsyncTask();
-     *  $data = ['k1' => 123, 'foo' => 'bar', 'fruit' => 'banana'];
-     *  $task->write($data, ['fruit', 'k1']);
-     *  var_dump($task->fruit, $task->k1);// string(6) "banana", int(123)
-     * </code>
-     * </p>
+     * @return AsyncTask
      *
-     * @throws IncorrectValueException <p>
+     * @throws IncorrectValueException
+     * <p>
      *  Array key must only contain Latin and Arabic numerals and '_'
      * <p>
      *
      */
-    public function write(array $data, array $keys = []): void
+    public function write(array $data) : AsyncTask
     {
         /**
          *
-         * Keys need to be validated before recording (A-Za-z1-9_)
+         * Keys need to in validate
+         * before recording (A-Za-z1-9_)
          *
-         * @var mixed $k
-         * @var mixed $v
+         * @var mixed $key
+         * @var mixed $value
+         *
          */
-        foreach ($data as $key => $value) {
-            if (!preg_match('/^[_a-zA-Z0-9]+$/', $key)) {
+        foreach ($data as $key => $value)
+        {
+            if (!preg_match('/^[_a-zA-Z0-9]+$/', $key))
+            {
                 throw new IncorrectValueException($key);
             }
+
+            $this->{$key} = serialize($value);
         }
 
-        // if array is not empty
-        if (count($keys)) {
-            foreach ($keys as $key) {
-
-                if (!isset($data[$key])) {
-                    throw new Exception('Trying to get missing key: ' . $key);
-                }
-
-                $this->{$key} = serialize($data[$key]);
-            }
-
-            // stop execution
-            return;
-        }
-
-        foreach ($data as $k => $v) {
-            $this->{$k} = serialize($v);
-        }
-
+        return $this;
     }
 
     /**
@@ -125,7 +116,8 @@ class AsyncTask extends Threaded
      */
     protected function readValue(string $key)
     {
-        if (is_null($v = $this->{$key})) {
+        if (is_null($v = $this->{$key}))
+        {
             throw new Exception('Trying to get a non-existent variable');
         }
 
@@ -190,33 +182,6 @@ class AsyncTask extends Threaded
     function getOutput(bool $unserialized)
     {
         return $unserialized ? unserialize($this->output) : $this->output;
-    }
-
-    /**
-     *
-     * <title>
-     *  Sets result of code execution
-     * </title>
-     *
-     * @param string $serializedResult
-     *
-     */
-    function setDescription(string $text)
-    {
-        $this->description = $text;
-    }
-
-    /**
-     *
-     * <title>
-     *  Result of execution
-     * </title>
-     *
-     * @return string
-     */
-    function getDescription(): string
-    {
-        return $this->description;
     }
 
     /**

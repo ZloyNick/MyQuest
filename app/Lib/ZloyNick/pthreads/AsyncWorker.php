@@ -1,9 +1,18 @@
 <?php
 
+/*
+ *
+ * AsyncWorker for AsyncTasks
+ *
+ * no description given.
+ *
+ */
+
+declare(strict_types=1);
 
 namespace App\Lib\ZloyNick\pthreads;
 
-use Worker, Threaded, InvalidArgumentException;
+use Worker, Threaded;
 
 use function count;
 
@@ -26,18 +35,8 @@ class AsyncWorker extends Worker
      */
     function stack(Threaded $work): int
     {
-        // checking class
-        if(!$work instanceof AsyncTask)
-        {
-            throw new InvalidArgumentException(
-                'Argument 1 passed as \Threaded, but argument 1 must be instance of ' .
-                AsyncTask::class
-            );
-        }
-
         $this->tasks[] = $work;
 
-        // Next task's id will equal count of tasks
         return parent::stack(
             $this->tasks[count($this->tasks)-1]
         );

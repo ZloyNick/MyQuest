@@ -1,5 +1,12 @@
 <?php
 
+/*
+ *
+ * Class for manipulations with
+ * workers
+ *
+ */
+
 declare(strict_types=1);
 
 namespace App\Lib\ZloyNick\pthreads;
@@ -11,20 +18,35 @@ use function usleep;
 class AsyncPool extends Pool
 {
 
-    /** @var int[] */
-    private $tasks = [];// counter for highloads calculations
-    /** @var AsyncWorker[] */
-    protected $workers = [];// \Thread
+    /**
+     * @var int[] $tasks
+     * @var AsyncWorker[] $workers
+     * @var int $nextWorkerId
+     */
+    protected
+        $nextWorkerId = 0,
+        $workers = [],
+        $tasks = [];
 
+    /**
+     *
+     * <title>
+     *  Registers workers
+     * </title>
+     *
+     * @param int $size
+     */
     function __construct(int $size)
     {
-        parent::__construct($size, AsyncWorker::class, []);
         for ($i = 0; $i < $size; $i++) {
             $this->workers[$i] = new AsyncWorker();
+            $worker = &$this->workers[$i];
+            $worker->start();
+            $worker->run();
             $this->tasks[$i] = 0;
-            $this->workers[$i]->start();
-            $this->workers[$i]->run();
         }
+
+        parent::__construct($size, AsyncWorker::class, []);
     }
 
     /**
@@ -33,7 +55,11 @@ class AsyncPool extends Pool
      */
     function submit(Threaded $task)
     {
-        $this->submitTo($this->getNextThreadId(), $task);
+        $this->submitTo(
+            $this->nextWorkerId == $this->size - 1
+            ? 0 : $this->nextWorkerId++,
+            $task
+        );
     }
 
     /**
@@ -55,81 +81,52 @@ class AsyncPool extends Pool
     /**
      *
      * <title>
-     *  Return thread's id, where load is minimum
-     * </title>
-     *
-     * @return int
-     *
-     */
-    function getNextThreadId(): int
-    {
-        $threadsLoad = &$this->tasks;
-        $minLoad = 0;
-
-        for ($i = 0; $i < $this->size; $i++) {
-            if ($threadsLoad[$i] == 0)
-                return $i;
-
-            // line selector
-            if ($threadsLoad[$i] < $threadsLoad[$minLoad])
-                $minLoad = $threadsLoad[$i] < $threadsLoad[$minLoad] ? $i : $minLoad;
-        }
-
-        return $minLoad;
-    }
-
-
-    /**
-     *
-     * <title>
      *  All tasks completion procedure
      * </title>
-     *
-     * @param array $resultVar
-     * <p>
-     *  Result will be writen to array
-     * </p>
-     *
+     * @param bool $unserialized
+     * @return array
      */
-    function onCompletion(array &$resultVar, bool $unserialized): void
+    function onCompletion(bool $unserialized) : array
     {
+        $data = [];
 
         /**
          * @var int $id
          * @var AsyncWorker $worker
          */
-        foreach ($this->workers as $id => $worker) {
+        foreach ($this->workers as $id => $worker)
+        {
             /**
              * @var int $taskId
              * @var AsyncTask $task
              */
-            foreach ($worker->getTasks() as $taskId => $task) {
-
-                while (!$task->isCompleted()) ;
+            foreach ($worker->getTasks() as $taskId => $task)
+            {
+                while (!$task->isCompleted());
 
                 usleep(100);
 
                 $worker->collect(
-                    function (AsyncTask $task) use (&$resultVar, $unserialized) {
+                    function (AsyncTask $task) use (&$data, $unserialized)
+                    {
                         $output = $task->getOutput($unserialized);
-                        $resultVar[$s = $task->getService()] = ['companies' => [], 'status' => 500, 'message' => ''];
-                        $resultVar[$s]['status'] = $status = isset($output['message']) ? 500 : 200;
-
-                        if($status == 200)
-                        {
-                            $resultVar[$s]['companies'] = $output;
-                            $resultVar[$s]['status'] = 200;
-                        }else $resultVar[$s]['message'] = $output['message'];
+                        $data[$s = $task->getService()] = [
+                            'companies' => $output,
+                            'status' => ($message = $output['message']) ? 500 : 200,
+                            'message' => $message
+                        ];
                     }
                 );
 
-                $worker->removeTask($taskId);
+                $worker->removeTask($id);
                 $this->tasks[$id]--;
             }
 
-            // unstacking Worker. Now, load of worker with id $id is 0.
             $worker->unstack();
+            $worker->kill();
         }
+
+        return $data;
     }
 
 }

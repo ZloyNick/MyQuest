@@ -21,8 +21,9 @@ class PthreadsAsyncRequest extends TestCase
         $threads = env('THREADS');
         $token = env('DADATA_TOKEN');
         $runtime = env('PTHREADS_PHP_RUNTIME');
-        // here is full path to AsyncCompanySearch.
         $scriptSrc = "/home/zloynick/test/public/scripts/AsyncCompanySearch.php";
+
+        $this->assertTrue(file_exists($scriptSrc));
 
         $process = new Process([$runtime, $scriptSrc, $threads, $inn, $token, ""]);
         $process->run(function ($type, $buffer) {

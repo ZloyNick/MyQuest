@@ -1,102 +1,119 @@
 <?php
 
+/*
+ *
+ * This class submits and runs tasks.
+ *
+ * Also, class collects finished tasks.
+ *
+ */
+
 declare(strict_types=1);
 
 namespace App\Lib\ZloyNick\pthreads;
 
-/**
- *
- * <title>
- *  Quick replacement without overriding when used.
- * </title>
- *
- * @param string $replace
- * @param string $current
- * @param string $text
- *
- */
-function rplc(string $replace, string $current, string &$text) : void
-{
-    $text = str_replace($replace, $current, $text);
-}
+use App\Lib\ZloyNick\pthreads\task\{
+    DadataAsyncTask,
+    LocalRestAsyncTask,
+    RandomDataAsyncTask
+};
 
-use App\Lib\ZloyNick\pthreads\task\DadataAsyncTask;
-use App\Lib\ZloyNick\pthreads\task\LocalRestAsyncTask;
-
-use App\Lib\ZloyNick\pthreads\task\RandomDataAsyncTask;
-use function str_replace, in_array;
+use function in_array, array_push;
 
 class Scheduler
 {
 
-    /** @var AsyncPool */
-    private $asyncPool;
     /**
+     * @var string[] $blocked
      * <p>
-     *  Dadata Token, INN
+     *  Site blocks services,
+     *  where error has given
+     *  5 times/hour.
      * </p>
-     * @var string[]
+     * @var AsyncPool $pool
+     * @var string $data
      */
-    private $data = [];
-    private static $blocked = [];
+    private
+        $asyncPool,
+        $data = [],
+        $blocked = [];
 
-    function init(array $data = [])
+
+    /**
+     *
+     * <title>
+     *  Creates Workers
+     * </title>
+     *
+     * @param array $data
+     * <p>
+     *  Contains inn, threads, blocked services
+     * </p>
+     *
+     * @return Scheduler
+     *
+     */
+    function init(array $data = []) : Scheduler
     {
-        $this->logFile = __DIR__.'/../../../../storage/logs/ZloyNick_pthreads.log';
-
-        if(!isset($data['inn']) || !isset($data['dadataTokenKey']) || !isset($data['threads']))
-        {
-            $this->generateErrorMessage(
-                __FILE__,
-                'Cannot found one of index: inn, dadataTokenKey or threads',
-                __METHOD__
-            );
-        }
-
         $this->registerAsyncPool($data['threads'] < 1 ? 2 : $data['threads']);
 
-        static::$blocked = $data['services.blocked'];
-
+        $this->blocked = $data['services.blocked'];
         unset($data['threads'], $data['services.blocked']);
         $this->data = $data;
+
+        return $this;
     }
 
-    function run() : void
+    /**
+     *
+     * <title>
+     *  Runs tasks with different
+     *  services using
+     * </title>
+     *
+     * @return Scheduler
+     *
+     * @throws IncorrectValueException
+     *
+     */
+    function run() : Scheduler
     {
-        $taskDadata = new DadataAsyncTask('dadata');
-        $taskLocalRest = new LocalRestAsyncTask('localhost');
-        $taskRandom = new RandomDataAsyncTask('random');
+        /** @var AsyncTask[] $arrayOfThreaded */
+        $arrayOfThreaded = [];
 
-        $taskDadata->setDescription('Dadata REST API Library');
-        $taskDadata->write($this->data);
+        array_push(
+            $arrayOfThreaded,
+            (new DadataAsyncTask('dadata'))->write($data = $this->data),
+            (new LocalRestAsyncTask('localhost'))->write($data),
+            (new RandomDataAsyncTask('random'))->write($data)
+        );
 
-        $taskLocalRest->setDescription('Local REST API');
-        $taskLocalRest->write($this->data, ['inn']);
+        $blockedServices = $this->blocked;
 
-        $taskRandom->setDescription('Random data');
-        $taskRandom->write($this->data, ['inn']);
+        foreach ($arrayOfThreaded as $task)
+        {
+            if(!in_array($task->getService(), $blockedServices))
+            {
+                $this->asyncPool->submit($task);
+            }
+        }
 
-        if(!in_array('dadata', static::$blocked))
-            $this->asyncPool->submit($taskDadata);
-        if(!in_array('local', static::$blocked))
-            $this->asyncPool->submit($taskLocalRest);
-        if(!in_array('random', static::$blocked))
-            $this->asyncPool->submit($taskRandom);
+        return $this;
     }
 
     /**
      * <title>
-     *  When task was completed
+     *  When tasks finished,
+     *  unstacks Pool
      * <title>
      *
-     * @param $data
      * @param bool $unserialized
      *
+     * @return array
      */
-    function onComplete(&$data, bool $unserialized = true)
+    function onComplete(bool $unserialized = true) : array
     {
-        $this->asyncPool->onCompletion($data, $unserialized);
-        $this->asyncPool->shutdown();
+        return $this->asyncPool->onCompletion($unserialized);
     }
 
     /**
@@ -112,35 +129,5 @@ class Scheduler
     {
         $this->asyncPool = new AsyncPool($threads);
     }
-
-    /**
-     *
-     * For errors handling
-     *
-     * @param string $file
-     * @param string $message
-     * @param string $function
-     * @param string $type
-     */
-    function generateErrorMessage(string $file, string $message, string $function, string $type = 'Package Error') : void
-    {
-        // date string format 2000.01.1 00:00:00
-        $date = date('d.m.Y h:i:s');
-        $errorMessage = static::LOG_MESSAGE;
-
-        rplc('{date}', $date, $errorMessage);
-        rplc('{file}', $file, $errorMessage);
-        rplc('{message}', $message, $errorMessage);
-        rplc('{args}', implode(' ', $_SERVER['argv']), $errorMessage);
-        rplc('{version}', PHP_VERSION, $errorMessage);
-        rplc('{function}', $function, $errorMessage);
-        rplc('{type}', $type, $errorMessage);
-
-        file_put_contents($this->logFile, $errorMessage);
-        exit(-1);
-    }
-
-    private $logFile = '';
-    const LOG_MESSAGE = "Error {date}\n-------------------------------\nfile ----> {file}\n===============================\nType: {type}\nMessage: {message}\nFunction: {function}\n===============================\n\n==============Debug============\nArguments given: {args}\nPHP version: {version}";
 
 }

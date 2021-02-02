@@ -7,12 +7,13 @@ namespace App\Lib\ZloyNick\pthreads\task;
 use App\Lib\ZloyNick\pthreads\AsyncTask;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
-use ComposerAutoloaderInit265cfa55c83f224b7f33bd3f36a008a6;
+
+use function serialize, json_decode;
 
 class LocalRestAsyncTask extends AsyncTask
 {
 
-    public function run()
+    public function run() : void
     {
         parent::run();
 
@@ -33,9 +34,7 @@ class LocalRestAsyncTask extends AsyncTask
                     'timeout' => 5
                 ]
             );
-
         } catch (GuzzleException $e) {
-
             $data['message'] = $e->getMessage();
             $this->setOutput(serialize($data));
             $this->setCompleted();
@@ -44,15 +43,18 @@ class LocalRestAsyncTask extends AsyncTask
         } finally {
             $parties = json_decode($response->getBody()->getContents());
 
-            if ($parties->message) {
+            if ($parties->message)
+            {
                 $data['message'] = $parties->message;
                 $this->setOutput(serialize($data));
                 $this->setCompleted();
+
                 return;
             }
         }
 
-        foreach ($parties->companies as $k => $party) {
+        foreach ($parties->companies as $k => $party)
+        {
             $data[$k] = [
                 'name' => $party->name,
                 'ogrn' => $party->ogrn,
